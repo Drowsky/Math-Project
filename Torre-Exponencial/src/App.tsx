@@ -7,7 +7,7 @@ import Winner from "./components/Winner";
 function App() {
   const [playerName, setPlayerName] = useState("");
   const [joined, setJoined] = useState(false);
-  const { connected, lobby, game, question, lastResult, error, quitMessage, restartState, join, startLobby, answer, quit, restart } = useGame(() => {
+  const { connected, lobby, game, question, lastResult, error, quitMessage, spectating, restartState, join, startLobby, answer, quit, restart } = useGame(() => {
     setJoined(false);
     setPlayerName("");
   });
@@ -71,11 +71,13 @@ function App() {
   if (game) {
     return (
       <div className="app">
+        {spectating && <div className="quit-banner">Esperando próxima partida</div>}
         <Game
           game={game}
-          question={question}
-          lastResult={lastResult}
+          question={spectating ? null : question}
+          lastResult={spectating ? null : lastResult}
           quitMessage={quitMessage}
+          spectating={spectating}
           onAnswer={answer}
           onQuit={quit}
         />

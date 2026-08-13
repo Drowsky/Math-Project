@@ -5,6 +5,7 @@ interface Props {
   question: QuestionData | null;
   lastResult: ResultData | null;
   quitMessage: string | null;
+  spectating?: boolean;
   onAnswer: (questionId: string, answerIndex: number) => void;
   onQuit: () => void;
 }
@@ -15,7 +16,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function Game({ game, question, lastResult, quitMessage, onAnswer, onQuit }: Props) {
+export default function Game({ game, question, lastResult, quitMessage, spectating, onAnswer, onQuit }: Props) {
   const maxFloor = game.maxFloor || 15;
   const matchUrgent = game.matchTimeLeft <= 30;
 
@@ -30,7 +31,7 @@ export default function Game({ game, question, lastResult, quitMessage, onAnswer
           {game.state === "COUNTDOWN" && `GO`}
         </div>
         <div className="state-badge">{game.state}</div>
-        <button className="quit-btn" onClick={onQuit}>Desistir</button>
+        {!spectating && <button className="quit-btn" onClick={onQuit}>Desistir</button>}
       </div>
 
       <div className="game-layout">

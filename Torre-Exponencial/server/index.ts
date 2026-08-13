@@ -34,6 +34,7 @@ interface Player {
   currentQuestion: Question | null;
   answered: boolean;
   answerTime: number;
+  spectating: boolean;
 }
 
 interface GameRoom {
@@ -63,11 +64,13 @@ const room: GameRoom = {
 };
 
 function broadcastLobby() {
-  const players = Array.from(room.players.values()).map((p) => ({
-    id: p.id,
-    name: p.name,
-    floor: p.floor,
-  }));
+  const players = Array.from(room.players.values())
+    .filter((p) => !p.spectating)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      floor: p.floor,
+    }));
   io.emit("lobby:update", {
     state: room.state,
     players,
@@ -81,6 +84,7 @@ function broadcastGameState() {
     name: p.name,
     floor: p.floor,
     answered: p.answered,
+    spectating: p.spectating,
   }));
   io.emit("game:state", {
     state: room.state,
@@ -107,7 +111,7 @@ function clearAllTimers() {
 
 function sendQuestion(socketId: string) {
   const player = room.players.get(socketId);
-  if (!player || room.state !== "PLAYING") return;
+  if (!player || player.spectating || room.state !== "PLAYING") return;
   const question = getQuestionForFloor(player.floor);
   player.currentQuestion = question;
   player.answered = false;
@@ -152,8 +156,8 @@ function startGame() {
     player.answerTime = Infinity;
   }
   broadcastGameState();
-  for (const [id] of room.players) {
-    sendQuestion(id);
+  for (const [id, p] of room.players) {
+    if (!p.spectating) sendQuestion(id);
   }
   startQuestionTimer();
   startMatchTimer();
@@ -172,8 +176,9 @@ function startMatchTimer() {
 function endGameByTime() {
   clearAllTimers();
   let best: Player | null = null;
-  for (const [, p] of room.players) {
-    if (!best || p.floor > best.floor) best = p;
+  for (const [, player] of room.players) {
+    if (player.spectating) continue;
+    if (!best || player.floor > best.floor) best = player;
   }
   room.state = "FINISHED";
   room.winner = best ? best.name : null;
@@ -196,7 +201,7 @@ function startQuestionTimer() {
 
 function handleTimeout() {
   for (const [id, player] of room.players) {
-    if (!player.answered && player.currentQuestion) {
+    if (!player.spectating && !player.answered && player.currentQuestion) {
       player.answered = true;
       player.floor = Math.max(1, player.floor - 1);
       io.to(id).emit("game:result", { correct: false, floor: player.floor });
@@ -219,8 +224,8 @@ function nextRound() {
   broadcastGameState();
   setTimeout(() => {
     if (room.state !== "PLAYING") return;
-    for (const [id] of room.players) {
-      sendQuestion(id);
+    for (const [id, p] of room.players) {
+      if (!p.spectating) sendQuestion(id);
     }
     startQuestionTimer();
   }, 200);
@@ -228,7 +233,7 @@ function nextRound() {
 
 function checkWinner(): Player | null {
   for (const [, player] of room.players) {
-    if (player.floor >= MAX_FLOOR) return player;
+    if (!player.spectating && player.floor >= MAX_FLOOR) return player;
   }
   return null;
 }
@@ -250,11 +255,19 @@ function resetGame() {
   room.winner = null;
   room.timeLeft = 0;
   room.matchTimeLeft = MATCH_DURATION;
-  for (const [, player] of room.players) {
-    player.floor = 1;
-    player.answered = false;
-    player.currentQuestion = null;
-    player.answerTime = Infinity;
+  const toDelete: string[] = [];
+  for (const [id, player] of room.players) {
+    if (player.spectating) {
+      toDelete.push(id);
+    } else {
+      player.floor = 1;
+      player.answered = false;
+      player.currentQuestion = null;
+      player.answerTime = Infinity;
+    }
+  }
+  for (const id of toDelete) {
+    room.players.delete(id);
   }
   broadcastLobby();
 }
@@ -280,10 +293,7 @@ io.on("connection", (socket: Socket) => {
       socket.emit("error:full");
       return;
     }
-    if (room.state !== "WAITING") {
-      socket.emit("error:inprogress");
-      return;
-    }
+    const isSpectator = room.state !== "WAITING";
     const player: Player = {
       id: socket.id,
       name: sanitizeName(name) || `Player${room.players.size + 1}`,
@@ -291,12 +301,19 @@ io.on("connection", (socket: Socket) => {
       currentQuestion: null,
       answered: false,
       answerTime: Infinity,
+      spectating: isSpectator,
     };
     room.players.set(socket.id, player);
-    broadcastLobby();
 
-    if (room.players.size >= MIN_PLAYERS && room.state === "WAITING") {
-      // Auto-start when enough players (set to 1 for testing, change to 2+ for production)
+    if (isSpectator) {
+      socket.join("game");
+      broadcastGameState();
+      socket.emit("game:spectating");
+    } else {
+      broadcastLobby();
+      if (room.players.size >= MIN_PLAYERS && room.state === "WAITING") {
+        // Auto-start when enough players
+      }
     }
   });
 
@@ -307,7 +324,7 @@ io.on("connection", (socket: Socket) => {
 
   socket.on("game:answer", (data: { questionId: string; answerIndex: number }) => {
     const player = room.players.get(socket.id);
-    if (!player || room.state !== "PLAYING" || player.answered) return;
+    if (!player || player.spectating || room.state !== "PLAYING" || player.answered) return;
     if (!player.currentQuestion || player.currentQuestion.id !== data.questionId) return;
     if (typeof data.answerIndex !== "number" || data.answerIndex < 0 || data.answerIndex >= player.currentQuestion.options.length) return;
 
@@ -362,15 +379,17 @@ io.on("connection", (socket: Socket) => {
     const player = room.players.get(socket.id);
     if (!player) return;
     const playerName = player.name;
-    room.players.delete(socket.id);
-    room.readyForRestart.delete(socket.id);
 
     if (room.state === "WAITING") {
+      room.players.delete(socket.id);
+      room.readyForRestart.delete(socket.id);
       broadcastLobby();
       return;
     }
 
     if (room.state === "FINISHED") {
+      room.players.delete(socket.id);
+      room.readyForRestart.delete(socket.id);
       if (room.players.size === 0) {
         resetGame();
         return;
@@ -380,19 +399,21 @@ io.on("connection", (socket: Socket) => {
     }
 
     if (room.state === "PLAYING" || room.state === "COUNTDOWN") {
-      if (room.players.size === 0) {
-        resetGame();
-        return;
-      }
+      player.spectating = true;
+      player.currentQuestion = null;
+      player.answered = true;
+      room.readyForRestart.delete(socket.id);
 
-      if (room.players.size === 1) {
-        resetGame();
-        return;
-      }
-
+      io.to(socket.id).emit("game:spectating");
       io.emit("game:quit", { name: playerName, alone: false });
 
-      const allAnswered = Array.from(room.players.values()).every((p) => p.answered);
+      const activePlayers = Array.from(room.players.values()).filter((p) => !p.spectating);
+      if (activePlayers.length === 0) {
+        resetGame();
+        return;
+      }
+
+      const allAnswered = activePlayers.every((p) => p.answered);
       if (allAnswered && room.state === "PLAYING") {
         if (room.timer) clearInterval(room.timer);
         const winner = checkWinner();
@@ -446,10 +467,11 @@ io.on("connection", (socket: Socket) => {
         broadcastRestartState();
       }
     } else if (room.state === "PLAYING" || room.state === "COUNTDOWN") {
-      if (room.players.size <= 1) {
+      const activePlayers = Array.from(room.players.values()).filter((p) => !p.spectating);
+      if (activePlayers.length === 0) {
         resetGame();
       } else {
-        const allAnswered = Array.from(room.players.values()).every((p) => p.answered);
+        const allAnswered = activePlayers.every((p) => p.answered);
         if (allAnswered && room.state === "PLAYING") {
           if (room.timer) clearInterval(room.timer);
           const winner = checkWinner();

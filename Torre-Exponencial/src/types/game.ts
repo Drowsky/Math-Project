@@ -3,6 +3,7 @@ export interface PlayerInfo {
   name: string;
   floor: number;
   answered?: boolean;
+  spectating?: boolean;
 }
 
 export interface LobbyData {

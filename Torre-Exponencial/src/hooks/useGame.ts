@@ -10,6 +10,7 @@ export function useGame(onDisconnected?: () => void) {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quitMessage, setQuitMessage] = useState<string | null>(null);
+  const [spectating, setSpectating] = useState(false);
   const [restartState, setRestartState] = useState<RestartStateData | null>(null);
   const onDisconnectedRef = useRef(onDisconnected);
   onDisconnectedRef.current = onDisconnected;
@@ -29,11 +30,14 @@ export function useGame(onDisconnected?: () => void) {
       setQuestion(null);
       setLastResult(null);
       setRestartState(null);
+      setSpectating(false);
       setError(null);
     });
 
     socket.on("game:state", (data: GameData) => {
       setGame(data);
+      const me = data.players.find((p) => p.id === socket.id);
+      if (me && !me.spectating) setSpectating(false);
       if (data.state === "FINISHED") setQuestion(null);
       if (data.state !== "FINISHED") setRestartState(null);
     });
@@ -50,6 +54,12 @@ export function useGame(onDisconnected?: () => void) {
     socket.on("game:quit", (data: { name: string; alone: boolean }) => {
       setQuitMessage(`Jogador ${data.name} abandonou a partida. Burrão KKKKKK`);
       setTimeout(() => setQuitMessage(null), 4000);
+    });
+
+    socket.on("game:spectating", () => {
+      setSpectating(true);
+      setQuestion(null);
+      setLastResult(null);
     });
 
     socket.on("game:restart-state", (data: RestartStateData) => {
@@ -92,6 +102,7 @@ export function useGame(onDisconnected?: () => void) {
     lastResult,
     error,
     quitMessage,
+    spectating,
     restartState,
     join,
     startLobby,
