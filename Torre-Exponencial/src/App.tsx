@@ -45,6 +45,7 @@ function App() {
             Jogar
           </button>
           {error && <div className="error">{error}</div>}
+          <div style={{ position: "fixed", bottom: 8, right: 12, fontSize: 12, opacity: 0.5 }}>v1.0.6</div>
         </div>
       </div>
     );
