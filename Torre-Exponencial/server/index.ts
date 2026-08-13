@@ -255,19 +255,12 @@ function resetGame() {
   room.winner = null;
   room.timeLeft = 0;
   room.matchTimeLeft = MATCH_DURATION;
-  const toDelete: string[] = [];
-  for (const [id, player] of room.players) {
-    if (player.spectating) {
-      toDelete.push(id);
-    } else {
-      player.floor = 1;
-      player.answered = false;
-      player.currentQuestion = null;
-      player.answerTime = Infinity;
-    }
-  }
-  for (const id of toDelete) {
-    room.players.delete(id);
+  for (const [, player] of room.players) {
+    player.floor = 1;
+    player.answered = false;
+    player.currentQuestion = null;
+    player.answerTime = Infinity;
+    player.spectating = false;
   }
   broadcastLobby();
 }
