@@ -9,8 +9,8 @@ interface Props {
 
 export default function Winner({ winner, players, restartState, onRestart }: Props) {
   const sorted = [...players].sort((a, b) => b.floor - a.floor);
-  const hasPressed = restartState && restartState.readyNames.length > 0;
-  const allReady = restartState && restartState.readyNames.length >= restartState.totalPlayers;
+  const hasPressed = restartState && restartState.readyPlayers.length > 0;
+  const allReady = restartState && restartState.readyPlayers.length >= restartState.totalPlayers;
 
   return (
     <div className="winner-screen">
@@ -34,18 +34,18 @@ export default function Winner({ winner, players, restartState, onRestart }: Pro
         <div className="restart-queue">
           <div className="restart-queue-title">Na fila para jogar:</div>
           <div className="restart-queue-names">
-            {restartState!.readyNames.map((name) => (
+            {restartState!.readyPlayers.map((name: string) => (
               <span key={name} className="restart-player-tag">{name}</span>
             ))}
           </div>
           <div className="restart-timer-info">
-            {restartState!.readyNames.length}/{restartState!.totalPlayers} prontos
+            {restartState!.readyPlayers.length}/{restartState!.totalPlayers} prontos
             {restartState!.timeLeft > 0 && ` · ${restartState!.timeLeft}s`}
           </div>
         </div>
       )}
 
-      <button onClick={onRestart} disabled={!!(restartState && restartState.readyNames.length > 0)}>
+      <button onClick={onRestart} disabled={!!(restartState && restartState.readyPlayers.length > 0)}>
         {hasPressed ? "Aguardando jogadores..." : "Jogar Novamente"}
       </button>
     </div>

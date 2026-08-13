@@ -39,3 +39,4 @@ export interface RestartStateData {
   totalPlayers: number;
   timeLeft: number;
 }
+

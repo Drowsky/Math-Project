@@ -1,10 +1,13 @@
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import express from "express";
-import { getQuestionForFloor, Question } from "./questions.js";
+import { getQuestionForFloor, type Question } from "./questions.js";
 
 const app = express();
-app.use(express.static("dist"));
+
+app.get("/health", (_req: express.Request, res: express.Response) => {
+  res.json({ status: "ok" });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -39,7 +42,7 @@ interface GameRoom {
   timeLeft: number;
   matchTimeLeft: number;
   winner: string | null;
-  readyPlayersRestart: Set<string>;
+  readyForRestart: Set<string>;
   restartTimer: NodeJS.Timeout | null;
 }
 
@@ -193,7 +196,7 @@ function nextRound() {
     endGame(winner);
     return;
   }
-  for (const [id, player] of room.players) {
+  for (const [, player] of room.players) {
     player.answered = false;
     player.currentQuestion = null;
     player.answerTime = Infinity;
@@ -249,7 +252,7 @@ function broadcastRestartState() {
     if (p) readyNames.push(p.name);
   }
   io.emit("game:restart-state", {
-    readyPlayers,
+    readyPlayers: readyNames,
     totalPlayers: room.players.size,
     timeLeft: room.timeLeft,
   });
@@ -412,12 +415,7 @@ io.on("connection", (socket: Socket) => {
   });
 });
 
-app.use((_req, res) => {
-  const filePath = new URL("../dist/index.html", import.meta.url).pathname;
-  res.sendFile(filePath);
-});
-
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
