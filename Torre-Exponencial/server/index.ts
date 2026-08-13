@@ -12,9 +12,11 @@ app.get("/health", (_req: express.Request, res: express.Response) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: "*",
     methods: ["GET", "POST"],
+    credentials: false,
   },
+  transports: ["websocket", "polling"],
 });
 
 const MAX_FLOOR = 15;
