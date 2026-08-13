@@ -110,6 +110,9 @@ function sendQuestion(socketId: string) {
 }
 
 function startCountdown() {
+  room.readyForRestart.clear();
+  if (room.restartTimer) clearTimeout(room.restartTimer);
+  room.restartTimer = null;
   room.state = "COUNTDOWN";
   let count = COUNTDOWN_SECONDS;
   room.timeLeft = count;
@@ -348,9 +351,19 @@ io.on("connection", (socket: Socket) => {
     if (!player) return;
     const playerName = player.name;
     room.players.delete(socket.id);
+    room.readyForRestart.delete(socket.id);
 
     if (room.state === "WAITING") {
       broadcastLobby();
+      return;
+    }
+
+    if (room.state === "FINISHED") {
+      if (room.players.size === 0) {
+        resetGame();
+        return;
+      }
+      broadcastRestartState();
       return;
     }
 
@@ -403,8 +416,15 @@ io.on("connection", (socket: Socket) => {
 
   socket.on("disconnect", () => {
     room.players.delete(socket.id);
+    room.readyForRestart.delete(socket.id);
     if (room.state === "WAITING") {
       broadcastLobby();
+    } else if (room.state === "FINISHED") {
+      if (room.players.size === 0) {
+        resetGame();
+      } else {
+        broadcastRestartState();
+      }
     } else if (room.state === "PLAYING" || room.state === "COUNTDOWN") {
       broadcastGameState();
       if (room.players.size === 0) {
