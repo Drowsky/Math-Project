@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { socket } from "../lib/socket";
 import type { LobbyData, GameData, QuestionData, ResultData, RestartStateData } from "../types/game";
 
-export function useGame() {
+export function useGame(onDisconnected?: () => void) {
   const [lobby, setLobby] = useState<LobbyData | null>(null);
   const [game, setGame] = useState<GameData | null>(null);
   const [question, setQuestion] = useState<QuestionData | null>(null);
@@ -11,12 +11,17 @@ export function useGame() {
   const [error, setError] = useState<string | null>(null);
   const [quitMessage, setQuitMessage] = useState<string | null>(null);
   const [restartState, setRestartState] = useState<RestartStateData | null>(null);
+  const onDisconnectedRef = useRef(onDisconnected);
+  onDisconnectedRef.current = onDisconnected;
 
   useEffect(() => {
     socket.connect();
 
     socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
+    socket.on("disconnect", () => {
+      setConnected(false);
+      onDisconnectedRef.current?.();
+    });
 
     socket.on("lobby:update", (data: LobbyData) => {
       setLobby(data);

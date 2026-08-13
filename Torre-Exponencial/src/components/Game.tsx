@@ -46,7 +46,7 @@ export default function Game({ game, question, lastResult, quitMessage, onAnswer
           {game.state === "PLAYING" && question && (
             <div className={`question-card ${lastResult ? (lastResult.correct ? "correct" : "wrong") : ""}`}>
               <div className="question-difficulty">
-                Andar {game.players.find(() => true)?.floor || 1}
+                {question.question.options.length} opções
               </div>
               <p className="question-text">{question.question.text}</p>
               <div className="options">

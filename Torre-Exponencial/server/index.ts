@@ -92,6 +92,19 @@ function broadcastGameState() {
   });
 }
 
+function sanitizeName(name: string): string {
+  return name.replace(/[<>"'&]/g, "").trim().slice(0, 15) || "Player";
+}
+
+function clearAllTimers() {
+  if (room.timer) clearInterval(room.timer);
+  if (room.matchTimer) clearInterval(room.matchTimer);
+  if (room.restartTimer) clearTimeout(room.restartTimer);
+  room.timer = null;
+  room.matchTimer = null;
+  room.restartTimer = null;
+}
+
 function sendQuestion(socketId: string) {
   const player = room.players.get(socketId);
   if (!player || room.state !== "PLAYING") return;
@@ -103,16 +116,14 @@ function sendQuestion(socketId: string) {
       id: question.id,
       text: question.text,
       options: question.options,
-
     },
     timeLeft: room.timeLeft,
   });
 }
 
 function startCountdown() {
+  clearAllTimers();
   room.readyForRestart.clear();
-  if (room.restartTimer) clearTimeout(room.restartTimer);
-  room.restartTimer = null;
   room.state = "COUNTDOWN";
   let count = COUNTDOWN_SECONDS;
   room.timeLeft = count;
@@ -159,8 +170,7 @@ function startMatchTimer() {
 }
 
 function endGameByTime() {
-  if (room.timer) clearInterval(room.timer);
-  if (room.matchTimer) clearInterval(room.matchTimer);
+  clearAllTimers();
   let best: Player | null = null;
   for (const [, p] of room.players) {
     if (!best || p.floor > best.floor) best = p;
@@ -208,6 +218,7 @@ function nextRound() {
   }
   broadcastGameState();
   setTimeout(() => {
+    if (room.state !== "PLAYING") return;
     for (const [id] of room.players) {
       sendQuestion(id);
     }
@@ -223,8 +234,7 @@ function checkWinner(): Player | null {
 }
 
 function endGame(winner: Player) {
-  if (room.timer) clearInterval(room.timer);
-  if (room.matchTimer) clearInterval(room.matchTimer);
+  clearAllTimers();
   room.state = "FINISHED";
   room.winner = winner.name;
   room.readyForRestart.clear();
@@ -233,8 +243,7 @@ function endGame(winner: Player) {
 }
 
 function resetGame() {
-  if (room.matchTimer) clearInterval(room.matchTimer);
-  if (room.restartTimer) clearTimeout(room.restartTimer);
+  clearAllTimers();
   room.restartTimer = null;
   room.readyForRestart.clear();
   room.state = "WAITING";
@@ -277,7 +286,7 @@ io.on("connection", (socket: Socket) => {
     }
     const player: Player = {
       id: socket.id,
-      name: name || `Player${room.players.size + 1}`,
+      name: sanitizeName(name) || `Player${room.players.size + 1}`,
       floor: 1,
       currentQuestion: null,
       answered: false,
@@ -292,15 +301,15 @@ io.on("connection", (socket: Socket) => {
   });
 
   socket.on("lobby:start", () => {
-    if (room.state === "WAITING" && room.players.size >= MIN_PLAYERS) {
-      startCountdown();
-    }
+    if (room.state !== "WAITING" || room.players.size < MIN_PLAYERS) return;
+    startCountdown();
   });
 
   socket.on("game:answer", (data: { questionId: string; answerIndex: number }) => {
     const player = room.players.get(socket.id);
     if (!player || room.state !== "PLAYING" || player.answered) return;
     if (!player.currentQuestion || player.currentQuestion.id !== data.questionId) return;
+    if (typeof data.answerIndex !== "number" || data.answerIndex < 0 || data.answerIndex >= player.currentQuestion.options.length) return;
 
     player.answered = true;
     player.answerTime = Date.now();
@@ -341,7 +350,10 @@ io.on("connection", (socket: Socket) => {
       if (winner) {
         endGame(winner);
       } else {
-        setTimeout(() => nextRound(), 1500);
+        setTimeout(() => {
+          if (room.state !== "PLAYING") return;
+          nextRound();
+        }, 1500);
       }
     }
   });

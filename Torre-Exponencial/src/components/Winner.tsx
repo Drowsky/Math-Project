@@ -45,8 +45,8 @@ export default function Winner({ winner, players, restartState, onRestart }: Pro
         </div>
       )}
 
-      <button onClick={onRestart} disabled={!!(restartState && restartState.readyPlayers.length > 0)}>
-        {hasPressed ? "Aguardando jogadores..." : "Jogar Novamente"}
+      <button onClick={onRestart}>
+        {allReady ? "Reiniciando..." : hasPressed ? "Aguardando jogadores..." : "Jogar Novamente"}
       </button>
     </div>
   );

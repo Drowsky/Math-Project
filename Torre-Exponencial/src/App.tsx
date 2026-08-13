@@ -5,9 +5,12 @@ import Game from "./components/Game";
 import Winner from "./components/Winner";
 
 function App() {
-  const { connected, lobby, game, question, lastResult, error, quitMessage, restartState, join, startLobby, answer, quit, restart } = useGame();
   const [playerName, setPlayerName] = useState("");
   const [joined, setJoined] = useState(false);
+  const { connected, lobby, game, question, lastResult, error, quitMessage, restartState, join, startLobby, answer, quit, restart } = useGame(() => {
+    setJoined(false);
+    setPlayerName("");
+  });
 
   if (!connected) {
     return (
