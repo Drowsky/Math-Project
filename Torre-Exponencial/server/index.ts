@@ -380,20 +380,8 @@ io.on("connection", (socket: Socket) => {
     }
 
     if (room.state === "PLAYING" || room.state === "COUNTDOWN") {
-      if (room.players.size === 0) {
-        if (room.timer) clearInterval(room.timer);
-        if (room.matchTimer) clearInterval(room.matchTimer);
+      if (room.players.size <= 1) {
         resetGame();
-        return;
-      }
-
-      if (room.players.size === 1 && room.state === "PLAYING") {
-        if (room.timer) clearInterval(room.timer);
-        if (room.matchTimer) clearInterval(room.matchTimer);
-        room.state = "FINISHED";
-        room.winner = null;
-        io.emit("game:quit", { name: playerName, alone: true });
-        broadcastGameState();
         return;
       }
 
@@ -438,11 +426,10 @@ io.on("connection", (socket: Socket) => {
         broadcastRestartState();
       }
     } else if (room.state === "PLAYING" || room.state === "COUNTDOWN") {
-      broadcastGameState();
-      if (room.players.size === 0) {
-        if (room.timer) clearInterval(room.timer);
-        if (room.matchTimer) clearInterval(room.matchTimer);
+      if (room.players.size <= 1) {
         resetGame();
+      } else {
+        broadcastGameState();
       }
     }
     console.log(`Disconnected: ${socket.id}`);
