@@ -352,7 +352,8 @@ io.on("connection", (socket: Socket) => {
       maxFloor: MAX_FLOOR,
     });
 
-    const allAnswered = Array.from(room.players.values()).every((p) => p.answered);
+    const activePlayers = Array.from(room.players.values()).filter((p) => !p.spectating);
+    const allAnswered = activePlayers.length > 0 && activePlayers.every((p) => p.answered);
     if (allAnswered) {
       if (room.timer) clearInterval(room.timer);
       broadcastGameState();
