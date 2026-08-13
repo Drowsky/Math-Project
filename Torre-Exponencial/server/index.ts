@@ -380,13 +380,33 @@ io.on("connection", (socket: Socket) => {
     }
 
     if (room.state === "PLAYING" || room.state === "COUNTDOWN") {
-      if (room.players.size <= 1) {
+      if (room.players.size === 0) {
+        resetGame();
+        return;
+      }
+
+      if (room.players.size === 1) {
         resetGame();
         return;
       }
 
       io.emit("game:quit", { name: playerName, alone: false });
-      broadcastGameState();
+
+      const allAnswered = Array.from(room.players.values()).every((p) => p.answered);
+      if (allAnswered && room.state === "PLAYING") {
+        if (room.timer) clearInterval(room.timer);
+        const winner = checkWinner();
+        if (winner) {
+          endGame(winner);
+        } else {
+          setTimeout(() => {
+            if (room.state !== "PLAYING") return;
+            nextRound();
+          }, 1500);
+        }
+      } else {
+        broadcastGameState();
+      }
     }
   });
 
@@ -429,7 +449,21 @@ io.on("connection", (socket: Socket) => {
       if (room.players.size <= 1) {
         resetGame();
       } else {
-        broadcastGameState();
+        const allAnswered = Array.from(room.players.values()).every((p) => p.answered);
+        if (allAnswered && room.state === "PLAYING") {
+          if (room.timer) clearInterval(room.timer);
+          const winner = checkWinner();
+          if (winner) {
+            endGame(winner);
+          } else {
+            setTimeout(() => {
+              if (room.state !== "PLAYING") return;
+              nextRound();
+            }, 1500);
+          }
+        } else {
+          broadcastGameState();
+        }
       }
     }
     console.log(`Disconnected: ${socket.id}`);

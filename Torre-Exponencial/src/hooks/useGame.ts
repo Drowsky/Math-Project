@@ -25,6 +25,10 @@ export function useGame(onDisconnected?: () => void) {
 
     socket.on("lobby:update", (data: LobbyData) => {
       setLobby(data);
+      setGame(null);
+      setQuestion(null);
+      setLastResult(null);
+      setRestartState(null);
       setError(null);
     });
 
